@@ -26,56 +26,108 @@ namespace panpan.Util
     }
 
     public delegate void TimerCallback();
+
     public class PTimer
     {
+        private static readonly List<PTimer> timers = new List<PTimer>();
+        private static readonly List<PTimer> tickList = new List<PTimer>();
+
         private TimerCallback? timerCompleteCallback;
-        private Thread timerThread;
         private bool running;
         private bool complete;
         private float duration;
-        private float startTime;
+        private float elapsed;
+        private bool repeat;
 
         public float Duration => duration;
-        public float StartTime => startTime;
+        public float Elapsed => elapsed;
+        public float Remaining => MathF.Max(duration - elapsed, 0.0f);
         public bool Running => running;
         public bool Complete => complete;
+        public bool Repeat { get => repeat; set => repeat = value; }
 
-        public PTimer(float durationSeconds, TimerCallback? timerCompleteCallback)
+        public float Progress => duration <= 0.0f ? 1.0f : Math.Clamp(elapsed / duration, 0.0f, 1.0f);
+
+        public PTimer(float durationSeconds, TimerCallback? timerCompleteCallback, bool repeat = false)
         {
             this.duration = durationSeconds;
             this.timerCompleteCallback = timerCompleteCallback;
-            timerThread = new Thread(Update);
+            this.repeat = repeat;
             running = false;
             complete = false;
         }
 
-        private void Update()
+        public static void UpdateAll(float deltaTime)
         {
-            while (running)
+            if (timers.Count == 0)
+                return;
+
+            tickList.Clear();
+            tickList.AddRange(timers);
+
+            foreach (var timer in tickList)
             {
-                if (Time.Elapsed() - startTime >= duration)
-                {
-                    running = false;
-                    complete = true;
-                    if (timerCompleteCallback != null)
-                    {
-                        timerCompleteCallback();
-                    }
-                }
+                timer.Tick(deltaTime);
             }
+        }
+
+        public static void StopAll()
+        {
+            foreach (var timer in timers)
+            {
+                timer.running = false;
+            }
+            timers.Clear();
+        }
+
+        private void Tick(float deltaTime)
+        {
+            if (!running)
+                return;
+
+            elapsed += deltaTime;
+            if (elapsed < duration)
+                return;
+
+            if (repeat)
+            {
+                elapsed -= duration;
+                if (elapsed >= duration)
+                    elapsed = 0.0f;
+            }
+            else
+            {
+                Stop();
+                complete = true;
+            }
+
+            timerCompleteCallback?.Invoke();
         }
 
         public void Start()
         {
             Restart();
-            timerThread.Start();
         }
 
         public void Restart()
         {
-            running = true;
+            elapsed = 0.0f;
             complete = false;
-            startTime = Time.Elapsed();
+
+            if (!running)
+            {
+                running = true;
+                timers.Add(this);
+            }
+        }
+
+        public void Stop()
+        {
+            if (!running)
+                return;
+
+            running = false;
+            timers.Remove(this);
         }
     }
 }

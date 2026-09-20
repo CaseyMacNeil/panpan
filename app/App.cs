@@ -296,6 +296,9 @@ namespace panpan
                     FixedUpdate();
                     fixedUpdateAccumulator -= 1.0f / 60.0f;
                 }
+
+                PTimer.UpdateAll(deltaTime);
+
                 Update();
                 Render();
 
